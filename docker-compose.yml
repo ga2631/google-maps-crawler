@@ -1,0 +1,21 @@
+services:
+  crawler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gmaps_hcmc_crawler
+    volumes:
+      # Mount data directory to persist SQLite DB and exported files on host
+      - ./data:/app/data
+      # Mount config directory to allow editing keywords.txt on host
+      - ./config:/app/config
+    environment:
+      - MAX_RESULTS=50
+      - HEADLESS=true
+      - ONLY_ACTIVE=true
+      - SCROLL_DELAY=2.0
+      - ITEM_DELAY=1.5
+      - DB_PATH=/app/data/businesses.db
+    # IPC host is recommended for Chromium memory handling
+    ipc: host
+    restart: "no"
