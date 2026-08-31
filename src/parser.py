@@ -7,7 +7,7 @@ except ImportError:
     Page = Any  # type: ignore
     Locator = Any  # type: ignore
 
-PHONE_REGEX = re.compile(r'(\+?84|0|1[89]00)(?:[\s.-]?\d){6,10}\b')
+PHONE_REGEX = re.compile(r'(?<!\d)(?:\+?84|0|1[89]00)(?:[\s.()-]*\d){6,11}\b')
 COORDS_REGEX = re.compile(r'@([0-9\.\-]+),([0-9\.\-]+)')
 URL_COORDS_REGEX = re.compile(r'!3d([0-9\.\-]+)!4d([0-9\.\-]+)')
 
@@ -51,8 +51,23 @@ def clean_phone(phone_raw: Optional[str]) -> str:
     
     # Strip any characters other than digits and '+'
     digits = re.sub(r'[^\d+]', '', raw)
-    
-    # 1. Bỏ qua các số bàn TP.HCM bắt đầu bằng 028, +8428, 8428
+    if not digits:
+        return ""
+
+    # 1. Bỏ qua các số tổng đài 1800, 1900,... (không lưu số tổng đài)
+    if (
+        digits.startswith("1900")
+        or digits.startswith("1800")
+        or digits.startswith("+841900")
+        or digits.startswith("+841800")
+        or digits.startswith("841900")
+        or digits.startswith("841800")
+        or digits.startswith("01900")
+        or digits.startswith("01800")
+    ):
+        return ""
+
+    # 2. Bỏ qua các số bàn TP.HCM bắt đầu bằng 028, +8428, 8428
     if (
         digits.startswith("+8428")
         or digits.startswith("8428")
@@ -62,21 +77,34 @@ def clean_phone(phone_raw: Optional[str]) -> str:
     ):
         return ""
 
-    # 2. Xoá đầu số quốc gia +84 / 84 và chuẩn hoá về đầu 0 (hoặc giữ đầu tổng đài 1800/1900)
+    # 3. Chuyển đầu số quốc gia +84 / 84 thành đầu số 0
     if digits.startswith("+84"):
         digits = digits[3:]
-        if not (digits.startswith("1800") or digits.startswith("1900")) and not digits.startswith("0"):
+        if not digits.startswith("0"):
             digits = "0" + digits
     elif digits.startswith("84") and len(digits) >= 11:
         digits = digits[2:]
-        if not (digits.startswith("1800") or digits.startswith("1900")) and not digits.startswith("0"):
+        if not digits.startswith("0"):
             digits = "0" + digits
+    elif len(digits) == 9 and not digits.startswith("0"):
+        digits = "0" + digits
 
-    # 3. Kiểm tra lại sau khi chuẩn hoá nếu có dạng 028 hoặc 28 thì loại bỏ
+    # 4. Kiểm tra lại sau khi chuẩn hoá:
+    # - Loại bỏ nếu là số tổng đài 1900, 1800
+    if (
+        digits.startswith("1900")
+        or digits.startswith("1800")
+        or digits.startswith("01900")
+        or digits.startswith("01800")
+    ):
+        return ""
+
+    # - Loại bỏ nếu là số bàn 028 hoặc 28
     if digits.startswith("028") or digits.startswith("28"):
         return ""
 
-    if len(digits) < 7:
+    # 5. Kiểm tra độ dài hợp lệ (SĐT thông thường tại Việt Nam từ 9-11 chữ số)
+    if len(digits) < 9 or len(digits) > 11:
         return ""
 
     return digits

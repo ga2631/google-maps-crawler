@@ -6,7 +6,7 @@ Công cụ cào dữ liệu doanh nghiệp trên **Google Maps** trong khu vực
 > - **Không sử dụng Google Maps API** (tiết kiệm chi phí, không giới hạn quota).
 > - **Sử dụng Playwright (Chromium)** để render và cào dữ liệu trang động thực tế.
 > - **Tự động định vị TP.HCM** (`10.776889,106.700806`) và hỗ trợ giao diện tiếng Việt (`vi`).
-> - **Chuẩn hoá số điện thoại**: Tự động xoá đầu số quốc gia `+84` (chuyển về đầu `0...` hoặc giữ đầu tổng đài `1800`/`1900`), và **loại bỏ không lưu các số điện thoại bàn `028`, `+8428`** vào database.
+> - **Chuẩn hoá số điện thoại**: Tự động chuyển đầu số quốc gia `+84` thành đầu số `0...` (ví dụ `+84901234567` -> `0901234567`), và **loại bỏ không lưu các số tổng đài (`1900`, `1800`,...), số điện thoại bàn `028`** vào database.
 > - **Lọc trạng thái hoạt động**: Tự động nhận diện và chỉ lưu các doanh nghiệp đang hoạt động ("Đang mở cửa", "Mở cả ngày", v.v.), loại bỏ các điểm "Đã đóng cửa vĩnh viễn" / "Tạm thời đóng cửa".
 > - **Chống trùng lặp**: Cơ chế UPSERT thông minh trong SQLite dựa trên URL Google Maps hoặc cặp (Tên + SĐT).
 > - **Đóng gói Docker**: Chạy độc lập mọi môi trường, tự động mount volume lưu file SQLite ra máy host.
@@ -18,7 +18,7 @@ Công cụ cào dữ liệu doanh nghiệp trên **Google Maps** trong khu vực
 | Trường dữ liệu | Tên cột trong DB | Ví dụ |
 | :--- | :--- | :--- |
 | **Tên doanh nghiệp** | `name` | Công Ty TNHH Giải Pháp Công Nghệ ABC |
-| **Số điện thoại** | `phone` | `0909123456` / `0389123456` / `1900636688` (Đã lọc bỏ số 028/+8428) |
+| **Số điện thoại** | `phone` | `0909123456` / `0389123456` (Đã chuyển +84 -> 0, lọc bỏ 1900/1800 và số bàn 028) |
 | **Ngành nghề kinh doanh** | `category` | Công ty phần mềm, Nhà hàng, Quán cafe,... |
 | **Tình trạng hoạt động** | `status` | Đang mở cửa, Mở cả ngày, Đang hoạt động |
 | **Đang hoạt động?** | `is_active` | `1` (Đang hoạt động) / `0` (Đóng cửa) |
@@ -133,7 +133,7 @@ python main.py --export-csv data/doanh_nghiep_hcm.csv
 | `--all-status` | Lưu cả doanh nghiệp đã đóng cửa | `False` (Chỉ lưu đang hoạt động) |
 | `--stats` | Xem thống kê số lượng & ngành nghề | - |
 | `--list` | Hiển thị bảng danh sách các doanh nghiệp gần nhất | - |
-| `--clean-phones` | Chuẩn hoá SĐT cũ trong DB (xoá +84, bỏ số 028/+8428) | - |
+| `--clean-phones` | Chuẩn hoá SĐT cũ trong DB (chuyển +84 -> 0, loại bỏ 1900/1800 và số bàn 028) | - |
 | `--mark-checked ID` | Đánh dấu doanh nghiệp đã kiểm tra thông tin theo ID | - |
 | `--unmark-checked ID` | Bỏ đánh dấu kiểm tra thông tin theo ID | - |
 | `--export-csv` | Xuất dữ liệu ra file CSV | - |

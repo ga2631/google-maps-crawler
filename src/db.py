@@ -63,13 +63,14 @@ class Database:
             cursor.executescript(CREATE_INDEXES_SQL)
             conn.commit()
 
-        # Tự động chuẩn hoá các SĐT cũ và loại bỏ SĐT 028/+8428 nếu có
+        # Tự động chuẩn hoá các SĐT cũ (+84 -> 0) và loại bỏ SĐT tổng đài 1900/1800, số bàn 028 nếu có
         self.clean_existing_phones()
 
     def clean_existing_phones(self) -> Dict[str, int]:
         """
         Quét và chuẩn hoá toàn bộ số điện thoại trong DB:
-        - Xoá đầu số +84 và chuẩn hoá về đầu 0 (hoặc 1800/1900)
+        - Chuyển đầu số +84 thành đầu số 0 (ví dụ +84901234567 -> 0901234567)
+        - Xoá các số tổng đài (1900, 1800,...)
         - Xoá các số điện thoại bàn 028, +8428, 8428
         """
         with self.get_connection() as conn:
@@ -78,7 +79,7 @@ class Database:
             rows = cursor.fetchall()
             
             updated_count = 0
-            removed_028_count = 0
+            removed_invalid_count = 0
             
             for row in rows:
                 old_phone = row["phone"]
@@ -90,13 +91,14 @@ class Database:
                     )
                     updated_count += 1
                     if not new_phone:
-                        removed_028_count += 1
+                        removed_invalid_count += 1
             
             conn.commit()
             return {
                 "total_checked": len(rows),
                 "updated": updated_count,
-                "removed_028": removed_028_count
+                "removed_invalid": removed_invalid_count,
+                "removed_028": removed_invalid_count
             }
 
     def update_checked_status(self, business_id: int, is_checked: int = 1) -> bool:

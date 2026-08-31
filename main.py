@@ -91,7 +91,7 @@ async def main():
     parser.add_argument("--all-status", action="store_true", help="Lưu cả doanh nghiệp đã đóng cửa (mặc định chỉ lưu đang hoạt động)")
     parser.add_argument("--stats", action="store_true", help="Xem thống kê dữ liệu hiện có trong SQLite")
     parser.add_argument("--list", action="store_true", help="Xem danh sách doanh nghiệp vừa cào")
-    parser.add_argument("--clean-phones", action="store_true", help="Chuẩn hoá số điện thoại hiện có trong DB (xoá +84, bỏ số bàn 028/+8428)")
+    parser.add_argument("--clean-phones", action="store_true", help="Chuẩn hoá SĐT trong DB (chuyển +84 thành 0, loại bỏ số tổng đài 1900/1800 và số bàn 028)")
     parser.add_argument("--mark-checked", type=int, metavar="ID", help="Đánh dấu doanh nghiệp đã kiểm tra thông tin theo ID")
     parser.add_argument("--unmark-checked", type=int, metavar="ID", help="Bỏ đánh dấu kiểm tra thông tin theo ID")
     parser.add_argument("--export-csv", type=str, metavar="PATH", help="Xuất toàn bộ dữ liệu ra file CSV (vd: data/output.csv)")
@@ -106,9 +106,9 @@ async def main():
         print("=" * 50)
         print(" 📞 KẾT QUẢ CHUẨN HOÁ SỐ ĐIỆN THOẠI TRONG DB")
         print("=" * 50)
-        print(f"📊 Tổng số SĐT đã kiểm tra   : {res['total_checked']}")
-        print(f"🔄 Số bản ghi đã chuẩn hoá (+84): {res['updated']}")
-        print(f"🗑️  Số SĐT bàn 028/+8428 đã xoá : {res['removed_028']}")
+        print(f"📊 Tổng số SĐT đã kiểm tra     : {res['total_checked']}")
+        print(f"🔄 Số bản ghi đã chuẩn hoá (+84 -> 0): {res['updated']}")
+        print(f"🗑️  Số SĐT tổng đài/số bàn đã xoá   : {res.get('removed_invalid', res.get('removed_028', 0))}")
         print("=" * 50)
         return
 
