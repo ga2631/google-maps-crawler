@@ -24,5 +24,5 @@ COPY main.py .
 # Create data directory
 RUN mkdir -p /app/data
 
-ENTRYPOINT ["python", "main.py", "--clean-phones"]
+ENTRYPOINT ["python", "main.py"]
 CMD ["-f", "config/keywords.txt"]
