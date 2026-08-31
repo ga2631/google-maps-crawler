@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: gmaps_hcmc_crawler
+    container_name: gmaps_crawler
     volumes:
       # Mount data directory to persist SQLite DB and exported files on host
       - ./data:/app/data
@@ -16,6 +16,7 @@ services:
       - SCROLL_DELAY=2.0
       - ITEM_DELAY=1.5
       - DB_PATH=/app/data/businesses.db
+      - MAPS_LANG=en
     # IPC host is recommended for Chromium memory handling
     ipc: host
     restart: "no"

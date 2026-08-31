@@ -54,7 +54,7 @@ def clean_phone(phone_raw: Optional[str]) -> str:
     if not digits:
         return ""
 
-    # 1. Bỏ qua các số tổng đài 1800, 1900,... (không lưu số tổng đài)
+    # 1. Ignore toll-free hotline numbers (1800, 1900, ...)
     if (
         digits.startswith("1900")
         or digits.startswith("1800")
@@ -67,7 +67,7 @@ def clean_phone(phone_raw: Optional[str]) -> str:
     ):
         return ""
 
-    # 2. Bỏ qua các số bàn TP.HCM bắt đầu bằng 028, +8428, 8428
+    # 2. Ignore unwanted landline prefixes (e.g. 028, +8428)
     if (
         digits.startswith("+8428")
         or digits.startswith("8428")
@@ -77,7 +77,7 @@ def clean_phone(phone_raw: Optional[str]) -> str:
     ):
         return ""
 
-    # 3. Chuyển đầu số quốc gia +84 / 84 thành đầu số 0
+    # 3. Convert national country code +84 / 84 to 0 prefix
     if digits.startswith("+84"):
         digits = digits[3:]
         if not digits.startswith("0"):
@@ -89,8 +89,7 @@ def clean_phone(phone_raw: Optional[str]) -> str:
     elif len(digits) == 9 and not digits.startswith("0"):
         digits = "0" + digits
 
-    # 4. Kiểm tra lại sau khi chuẩn hoá:
-    # - Loại bỏ nếu là số tổng đài 1900, 1800
+    # 4. Secondary validation after normalization
     if (
         digits.startswith("1900")
         or digits.startswith("1800")
@@ -99,11 +98,10 @@ def clean_phone(phone_raw: Optional[str]) -> str:
     ):
         return ""
 
-    # - Loại bỏ nếu là số bàn 028 hoặc 28
     if digits.startswith("028") or digits.startswith("28"):
         return ""
 
-    # 5. Kiểm tra độ dài hợp lệ (SĐT thông thường tại Việt Nam từ 9-11 chữ số)
+    # 5. Check valid phone length (typical phone length in VN is 9-11 digits)
     if len(digits) < 9 or len(digits) > 11:
         return ""
 
@@ -127,7 +125,7 @@ def determine_activity_status(status_text: str) -> tuple[str, int]:
     # If status is unknown but not explicitly closed, treat as active
     if status_text:
         return status_text, 1
-    return "Đang hoạt động", 1
+    return "Open", 1
 
 def extract_coordinates_from_url(url: str) -> tuple[Optional[float], Optional[float]]:
     if not url:
@@ -203,6 +201,7 @@ async def parse_business_details(page: Page, url: str = "", query: str = "") -> 
         "div[aria-label*='Mở cửa']",
         "div[aria-label*='Đóng cửa']",
         "div[aria-label*='Hours']",
+        "div[aria-label*='Opening hours']",
     ]
     for sel in status_selectors:
         try:
@@ -210,7 +209,7 @@ async def parse_business_details(page: Page, url: str = "", query: str = "") -> 
             if await loc.is_visible(timeout=800):
                 text = clean_text(await loc.inner_text())
                 if text:
-                    # Take first line if multiple lines (e.g. "Đang mở cửa ⋅ Đóng cửa lúc 22:00")
+                    # Take first line if multiple lines (e.g. "Open ⋅ Closes 10 PM")
                     status = text.split("⋅")[0].strip() if "⋅" in text else text
                     break
         except Exception:
@@ -218,7 +217,10 @@ async def parse_business_details(page: Page, url: str = "", query: str = "") -> 
 
     # Check for permanently / temporarily closed banner
     try:
-        closed_banner = page.locator("div.fontBodyMedium:has-text('đóng cửa'), div.fontBodyMedium:has-text('closed')").first
+        closed_banner = page.locator(
+            "div.fontBodyMedium:has-text('đóng cửa'), "
+            "div.fontBodyMedium:has-text('closed')"
+        ).first
         if await closed_banner.is_visible(timeout=500):
             banner_text = clean_text(await closed_banner.inner_text())
             if banner_text:
@@ -234,8 +236,12 @@ async def parse_business_details(page: Page, url: str = "", query: str = "") -> 
         "button[data-item-id^='phone:']",
         "button[data-tooltip*='số điện thoại']",
         "button[data-tooltip*='Sao chép số điện thoại']",
+        "button[data-tooltip*='phone']",
+        "button[data-tooltip*='Phone']",
         "button[aria-label*='Số điện thoại']",
         "button[aria-label*='Điện thoại']",
+        "button[aria-label*='Phone']",
+        "button[aria-label*='phone']",
         "button[data-item-id*='phone']",
         "a[href^='tel:']",
     ]
@@ -277,13 +283,14 @@ async def parse_business_details(page: Page, url: str = "", query: str = "") -> 
         "button[data-item-id*='address']",
         "button[aria-label*='Địa chỉ']",
         "button[aria-label*='Address']",
+        "button[aria-label*='address']",
     ]
     for sel in address_selectors:
         try:
             loc = page.locator(sel).first
             if await loc.is_visible(timeout=800):
                 text = await loc.get_attribute("aria-label") or await loc.inner_text()
-                # Remove "Địa chỉ: " prefix if present
+                # Remove "Address: " or "Địa chỉ: " prefix if present
                 address = clean_text(re.sub(r'^(Địa chỉ|Address):\s*', '', text, flags=re.IGNORECASE))
                 if address:
                     break
@@ -296,6 +303,7 @@ async def parse_business_details(page: Page, url: str = "", query: str = "") -> 
         "a[data-item-id='authority']",
         "a[aria-label*='Trang web']",
         "a[aria-label*='Website']",
+        "a[aria-label*='website']",
     ]
     for sel in website_selectors:
         try:

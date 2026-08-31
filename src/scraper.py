@@ -59,18 +59,18 @@ class GoogleMapsScraper:
                 "--no-zygote",
                 "--disable-gpu",
                 "--disable-blink-features=AutomationControlled",
-                "--lang=vi-VN,vi",
+                f"--lang={MAPS_LANG}",
             ]
         )
         context = await browser.new_context(
             user_agent=USER_AGENTS[0],
             viewport={"width": 1366, "height": 768},
-            locale="vi-VN",
+            locale=f"{MAPS_LANG}-VN" if MAPS_LANG == "vi" else f"{MAPS_LANG}-US",
         )
         # Anti-detect evasion script
         await context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-            Object.defineProperty(navigator, 'languages', { get: () => ['vi-VN', 'vi', 'en-US', 'en'] });
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en', 'vi-VN', 'vi'] });
             Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
         """)
         page = await context.new_page()
@@ -80,16 +80,16 @@ class GoogleMapsScraper:
     async def scroll_feed(self, page: Page, max_items: int) -> List[str]:
         """
         Scrolls the result feed in Google Maps to load place links.
-        Returns a list of URLs or selectors for the places found.
+        Returns a list of URLs for the places found.
         """
         feed_selector = "div[role='feed']"
         try:
             await page.wait_for_selector(feed_selector, timeout=10000)
         except Exception:
-            logger.warning("Không tìm thấy danh sách feed (có thể chỉ có 1 kết quả duy nhất).")
+            logger.warning("Feed list selector not found (query might have redirected to a single result).")
             return []
 
-        logger.info(f"Đang cuộn danh sách để tải tối đa {max_items} doanh nghiệp...")
+        logger.info(f"Scrolling feed to load up to {max_items} businesses...")
         
         seen_urls = set()
         last_count = 0
@@ -106,7 +106,7 @@ class GoogleMapsScraper:
                 except Exception:
                     continue
 
-            logger.info(f"-> Đã tìm thấy {len(seen_urls)} địa điểm...")
+            logger.info(f"-> Found {len(seen_urls)} places...")
 
             if len(seen_urls) >= max_items:
                 break
@@ -117,10 +117,15 @@ class GoogleMapsScraper:
                 stuck_retries = 0
                 last_count = len(seen_urls)
 
-            # Check if end of list reached
-            end_elem = page.locator("p.fontBodyMedium:has-text('kết thúc'), span:has-text('Bạn đã xem hết danh sách')")
+            # Check if end of list reached (supports both Vietnamese and English UI)
+            end_elem = page.locator(
+                "p.fontBodyMedium:has-text('kết thúc'), "
+                "span:has-text('Bạn đã xem hết danh sách'), "
+                "span:has-text(\"You've reached the end of the list\"), "
+                "p.fontBodyMedium:has-text('end of list')"
+            )
             if await end_elem.count() > 0 and await end_elem.first.is_visible():
-                logger.info("Đã đến cuối danh sách kết quả của Google Maps.")
+                logger.info("Reached the end of Google Maps results list.")
                 break
 
             # Scroll the feed
@@ -143,7 +148,7 @@ class GoogleMapsScraper:
             data = await parse_business_details(page, place_url, query)
             return data
         except Exception as e:
-            logger.error(f"Lỗi khi cào URL {place_url[:60]}...: {e}")
+            logger.error(f"Error scraping URL {place_url[:60]}...: {e}")
             return None
 
     async def crawl_query(self, query: str, limit: Optional[int] = None) -> int:
@@ -154,7 +159,7 @@ class GoogleMapsScraper:
         max_items = limit or self.max_results
         search_url = self.build_search_url(query)
         logger.info(f"\n========================================================")
-        logger.info(f"Bắt đầu cào từ khóa: '{query}'")
+        logger.info(f"Starting crawl for keyword: '{query}'")
         logger.info(f"URL: {search_url}")
         logger.info(f"========================================================")
 
@@ -168,47 +173,47 @@ class GoogleMapsScraper:
                 # Check if it directly redirected to a single place page
                 current_url = page.url
                 if "/maps/place/" in current_url:
-                    logger.info("Kết quả tìm kiếm khớp trực tiếp với 1 địa điểm!")
+                    logger.info("Search query directly matched a single place!")
                     await page.wait_for_selector("h1", timeout=5000)
                     data = await parse_business_details(page, current_url, query)
                     if self._should_save(data):
                         res = self.db.upsert_business(data)
-                        logger.info(f"[{res.upper()}] {data.get('name')} | SĐT: {data.get('phone')} | Ngành: {data.get('category')} | Trạng thái: {data.get('status')}")
+                        logger.info(f"[{res.upper()}] {data.get('name')} | Phone: {data.get('phone')} | Category: {data.get('category')} | Status: {data.get('status')}")
                         saved_count += 1
                     return saved_count
 
                 # Otherwise scroll the feed
                 place_urls = await self.scroll_feed(page, max_items)
-                logger.info(f"Tổng số URL thu thập được từ feed: {len(place_urls)}")
+                logger.info(f"Total URLs collected from feed: {len(place_urls)}")
 
                 for i, p_url in enumerate(place_urls, 1):
-                    logger.info(f"[{i}/{len(place_urls)}] Đang bóc tách dữ liệu...")
+                    logger.info(f"[{i}/{len(place_urls)}] Extracting data...")
                     data = await self.scrape_place_url(page, p_url, query)
                     
                     if not data or not data.get("name"):
                         continue
 
                     if not self._should_save(data):
-                        logger.info(f"[BỎ QUA - ĐÓNG CỬA] {data.get('name')} (Trạng thái: {data.get('status')})")
+                        logger.info(f"[SKIPPED - CLOSED] {data.get('name')} (Status: {data.get('status')})")
                         continue
 
                     res = self.db.upsert_business(data)
                     logger.info(
                         f"[{res.upper()}] {data.get('name')} | "
-                        f"SĐT: {data.get('phone') or 'N/A'} | "
-                        f"Ngành: {data.get('category') or 'N/A'} | "
-                        f"Trạng thái: {data.get('status')}"
+                        f"Phone: {data.get('phone') or 'N/A'} | "
+                        f"Category: {data.get('category') or 'N/A'} | "
+                        f"Status: {data.get('status')}"
                     )
                     saved_count += 1
                     await asyncio.sleep(ITEM_DELAY)
 
             except Exception as e:
-                logger.error(f"Lỗi trong quá trình cào từ khóa '{query}': {e}", exc_info=True)
+                logger.error(f"Error during crawl for keyword '{query}': {e}", exc_info=True)
             finally:
                 await context.close()
                 await browser.close()
 
-        logger.info(f"Hoàn thành từ khóa '{query}'. Đã lưu/cập nhật: {saved_count} doanh nghiệp.")
+        logger.info(f"Completed keyword '{query}'. Saved/Updated: {saved_count} businesses.")
         return saved_count
 
     def _should_save(self, data: dict) -> bool:
@@ -221,7 +226,7 @@ class GoogleMapsScraper:
     async def crawl_multiple(self, queries: List[str], limit_per_query: Optional[int] = None) -> int:
         total = 0
         for idx, q in enumerate(queries, 1):
-            logger.info(f"\n>>> TIẾN ĐỘ: Từ khóa {idx}/{len(queries)} <<<")
+            logger.info(f"\n>>> PROGRESS: Keyword {idx}/{len(queries)} <<<")
             cnt = await self.crawl_query(q, limit=limit_per_query)
             total += cnt
             await asyncio.sleep(2)

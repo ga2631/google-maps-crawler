@@ -34,69 +34,69 @@ def load_keywords(file_path: str) -> list[str]:
 def display_stats(db: Database):
     stats = db.get_stats()
     print("\n" + "="*50)
-    print(" 📊 THỐNG KÊ DỮ LIỆU DOANH NGHIỆP TRONG SQLITE")
+    print(" 📊 BUSINESS DATABASE STATISTICS (SQLITE)")
     print("="*50)
-    print(f"📁 Đường dẫn DB        : {db.db_path}")
-    print(f"🏢 Tổng số doanh nghiệp: {stats['total_businesses']}")
-    print(f"🟢 Đang hoạt động       : {stats['active_businesses']}")
-    print(f"✅ Đã check thông tin  : {stats['checked_businesses']}")
-    print(f"⏳ Chưa check          : {stats['unchecked_businesses']}")
-    print(f"📞 Có số điện thoại     : {stats['with_phone']}")
-    print(f"🏷️  Số ngành nghề khác nhau: {stats['distinct_categories']}")
+    print(f"📁 Database Path       : {db.db_path}")
+    print(f"🏢 Total Businesses    : {stats['total_businesses']}")
+    print(f"🟢 Active Businesses   : {stats['active_businesses']}")
+    print(f"✅ Verified / Checked  : {stats['checked_businesses']}")
+    print(f"⏳ Unchecked           : {stats['unchecked_businesses']}")
+    print(f"📞 With Phone Number   : {stats['with_phone']}")
+    print(f"🏷️  Distinct Categories : {stats['distinct_categories']}")
     print("-" * 50)
     
     if stats["top_categories"]:
-        print("📌 Top 5 ngành nghề phổ biến:")
+        print("📌 Top 5 Categories:")
         table_cats = [[c["category"], c["count"]] for c in stats["top_categories"][:5]]
-        print(tabulate(table_cats, headers=["Ngành nghề", "Số lượng"], tablefmt="grid"))
+        print(tabulate(table_cats, headers=["Category", "Count"], tablefmt="grid"))
     
     if stats["top_queries"]:
-        print("\n🔍 Top 5 từ khóa đã cào:")
+        print("\n🔍 Top 5 Search Queries:")
         table_queries = [[q["search_query"], q["count"]] for q in stats["top_queries"][:5]]
-        print(tabulate(table_queries, headers=["Từ khóa", "Số lượng"], tablefmt="grid"))
+        print(tabulate(table_queries, headers=["Search Query", "Count"], tablefmt="grid"))
     print("="*50 + "\n")
 
 def display_list(db: Database, limit: int = 15):
     rows = db.list_businesses(limit=limit)
     if not rows:
-        print("⚠️ Chưa có dữ liệu trong database.")
+        print("⚠️ No data available in database.")
         return
     
-    print(f"\n📋 Danh sách {len(rows)} doanh nghiệp gần nhất:")
+    print(f"\n📋 Latest {len(rows)} businesses:")
     table_data = []
     for r in rows:
         name = (r["name"][:25] + "..") if len(r["name"] or "") > 25 else (r["name"] or "")
         phone = r["phone"] or "-"
         cat = (r["category"][:20] + "..") if len(r["category"] or "") > 20 else (r["category"] or "-")
         status = r["status"] or "-"
-        checked_str = "✅ Đã check" if r.get("is_checked") == 1 else "⏳ Chưa"
+        checked_str = "✅ Checked" if r.get("is_checked") == 1 else "⏳ Unchecked"
         addr = (r["address"][:25] + "..") if len(r["address"] or "") > 25 else (r["address"] or "-")
         table_data.append([r["id"], name, phone, cat, status, checked_str, addr])
         
     print(tabulate(
         table_data,
-        headers=["ID", "Tên", "Điện thoại", "Ngành nghề", "Trạng thái", "Đã check", "Địa chỉ"],
+        headers=["ID", "Name", "Phone", "Category", "Status", "Checked", "Address"],
         tablefmt="grid"
     ))
 
 async def main():
     parser = argparse.ArgumentParser(
-        description="Google Maps Business Scraper (Không dùng API - Lưu SQLite)"
+        description="Google Maps Business Scraper (No API Required - SQLite Storage)"
     )
     
-    parser.add_argument("-q", "--query", type=str, help="Từ khóa cần cào (vd: 'công ty phần mềm Đà Nẵng', 'quán cafe Hà Nội')")
-    parser.add_argument("-f", "--file", type=str, default=KEYWORDS_FILE, help=f"Đường dẫn file chứa danh sách từ khóa (mặc định: {KEYWORDS_FILE})")
-    parser.add_argument("-l", "--limit", type=int, default=MAX_RESULTS, help=f"Số lượng kết quả tối đa cho mỗi từ khóa (mặc định: {MAX_RESULTS})")
-    parser.add_argument("--headful", action="store_true", help="Chạy browser hiển thị giao diện (mặc định headless)")
-    parser.add_argument("--all-status", action="store_true", help="Lưu cả doanh nghiệp đã đóng cửa (mặc định chỉ lưu đang hoạt động)")
-    parser.add_argument("--stats", action="store_true", help="Xem thống kê dữ liệu hiện có trong SQLite")
-    parser.add_argument("--list", action="store_true", help="Xem danh sách doanh nghiệp vừa cào")
-    parser.add_argument("--clean-phones", action="store_true", help="Chuẩn hoá SĐT trong DB (chuyển +84 thành 0, loại bỏ số tổng đài 1900/1800 và số bàn 028)")
-    parser.add_argument("--mark-checked", type=int, metavar="ID", help="Đánh dấu doanh nghiệp đã kiểm tra thông tin theo ID")
-    parser.add_argument("--unmark-checked", type=int, metavar="ID", help="Bỏ đánh dấu kiểm tra thông tin theo ID")
-    parser.add_argument("--export-csv", type=str, metavar="PATH", help="Xuất toàn bộ dữ liệu ra file CSV (vd: data/output.csv)")
-    parser.add_argument("--export-json", type=str, metavar="PATH", help="Xuất toàn bộ dữ liệu ra file JSON (vd: data/output.json)")
-    parser.add_argument("--db", type=str, default=DB_PATH, help=f"Đường dẫn file SQLite DB (mặc định: {DB_PATH})")
+    parser.add_argument("-q", "--query", type=str, help="Specific search keyword (e.g. 'software company Da Nang', 'cafe Hanoi')")
+    parser.add_argument("-f", "--file", type=str, default=KEYWORDS_FILE, help=f"Path to file with keywords (default: {KEYWORDS_FILE})")
+    parser.add_argument("-l", "--limit", type=int, default=MAX_RESULTS, help=f"Maximum results per keyword (default: {MAX_RESULTS})")
+    parser.add_argument("--headful", action="store_true", help="Run browser in headful mode with visible UI (default: headless)")
+    parser.add_argument("--all-status", action="store_true", help="Save closed businesses as well (default: only active)")
+    parser.add_argument("--stats", action="store_true", help="View database statistics")
+    parser.add_argument("--list", action="store_true", help="List recent businesses in database")
+    parser.add_argument("--clean-phones", action="store_true", help="Normalize phone numbers in DB (+84 -> 0, remove 1900/1800 and landlines)")
+    parser.add_argument("--mark-checked", type=int, metavar="ID", help="Mark business as checked by ID")
+    parser.add_argument("--unmark-checked", type=int, metavar="ID", help="Unmark business check status by ID")
+    parser.add_argument("--export-csv", type=str, metavar="PATH", help="Export all data to a CSV file (e.g. data/output.csv)")
+    parser.add_argument("--export-json", type=str, metavar="PATH", help="Export all data to a JSON file (e.g. data/output.json)")
+    parser.add_argument("--db", type=str, default=DB_PATH, help=f"Path to SQLite DB file (default: {DB_PATH})")
 
     args = parser.parse_args()
     db = Database(db_path=args.db)
@@ -104,26 +104,26 @@ async def main():
     if args.clean_phones:
         res = db.clean_existing_phones()
         print("=" * 50)
-        print(" 📞 KẾT QUẢ CHUẨN HOÁ SỐ ĐIỆN THOẠI TRONG DB")
+        print(" 📞 PHONE NUMBER NORMALIZATION RESULT")
         print("=" * 50)
-        print(f"📊 Tổng số SĐT đã kiểm tra     : {res['total_checked']}")
-        print(f"🔄 Số bản ghi đã chuẩn hoá (+84 -> 0): {res['updated']}")
-        print(f"🗑️  Số SĐT tổng đài/số bàn đã xoá   : {res.get('removed_invalid', res.get('removed_028', 0))}")
+        print(f"📊 Total phones checked        : {res['total_checked']}")
+        print(f"🔄 Standardized (+84 -> 0)     : {res['updated']}")
+        print(f"🗑️  Removed invalid / hotlines  : {res.get('removed_invalid', 0)}")
         print("=" * 50)
         return
 
     if args.mark_checked is not None:
         if db.update_checked_status(args.mark_checked, 1):
-            print(f"✅ Đã đánh dấu DOANH NGHIỆP ID {args.mark_checked} là ĐÃ CHECK THÔNG TIN.")
+            print(f"✅ Marked business ID {args.mark_checked} as CHECKED.")
         else:
-            print(f"❌ Không tìm thấy doanh nghiệp có ID {args.mark_checked}.")
+            print(f"❌ Business ID {args.mark_checked} not found.")
         return
 
     if args.unmark_checked is not None:
         if db.update_checked_status(args.unmark_checked, 0):
-            print(f"✅ Đã chuyển DOANH NGHIỆP ID {args.unmark_checked} về trạng thái CHƯA CHECK.")
+            print(f"✅ Reverted business ID {args.unmark_checked} to UNCHECKED status.")
         else:
-            print(f"❌ Không tìm thấy doanh nghiệp có ID {args.unmark_checked}.")
+            print(f"❌ Business ID {args.unmark_checked} not found.")
         return
 
     if args.stats:
@@ -136,12 +136,12 @@ async def main():
 
     if args.export_csv:
         count = db.export_to_csv(args.export_csv, only_active=not args.all_status)
-        print(f"✅ Đã xuất {count} doanh nghiệp ra file CSV: {args.export_csv}")
+        print(f"✅ Exported {count} businesses to CSV file: {args.export_csv}")
         return
 
     if args.export_json:
         count = db.export_to_json(args.export_json, only_active=not args.all_status)
-        print(f"✅ Đã xuất {count} doanh nghiệp ra file JSON: {args.export_json}")
+        print(f"✅ Exported {count} businesses to JSON file: {args.export_json}")
         return
 
     # Determine keywords to scrape
@@ -151,8 +151,8 @@ async def main():
     else:
         queries = load_keywords(args.file)
         if not queries:
-            print(f"⚠️ Không tìm thấy từ khóa nào trong file {args.file}!")
-            print("👉 Bạn có thể chỉ định từ khóa bằng tham số -q 'từ khóa' hoặc thêm vào file config/keywords.txt.")
+            print(f"⚠️ No keywords found in file: {args.file}!")
+            print("👉 Specify keywords using -q 'keyword' or add lines to config/keywords.txt.")
             sys.exit(1)
 
     is_headless = not args.headful if args.headful else HEADLESS
@@ -161,19 +161,19 @@ async def main():
     print("="*60)
     print("🚀 GOOGLE MAPS BUSINESS CRAWLER")
     print("="*60)
-    print(f"📌 Số lượng từ khóa      : {len(queries)}")
-    print(f"🎯 Giới hạn mỗi từ khóa   : {args.limit} kết quả")
-    print(f"🟢 Chỉ lấy đang hoạt động : {only_active}")
-    print(f"🖥️  Chế độ hiển thị        : {'Headless' if is_headless else 'Giao diện trực quan'}")
-    print(f"💾 Cơ sở dữ liệu SQLite   : {args.db}")
+    print(f"📌 Total Keywords         : {len(queries)}")
+    print(f"🎯 Limit Per Keyword      : {args.limit} results")
+    print(f"🟢 Only Active Businesses : {only_active}")
+    print(f"🖥️  Browser Mode           : {'Headless' if is_headless else 'Headful (Visible)'}")
+    print(f"💾 SQLite Database        : {args.db}")
     print("="*60)
 
     try:
         from src.scraper import GoogleMapsScraper
     except ImportError as e:
-        print("\n❌ Lỗi: Chưa cài đặt thư viện Playwright hoặc dependencies.")
-        print("👉 Nếu chạy trực tiếp: hãy chạy 'pip install -r requirements.txt && playwright install chromium'")
-        print("👉 Hoặc chạy đơn giản qua Docker: 'docker compose up'")
+        print("\n❌ Error: Missing Playwright or dependencies.")
+        print("👉 For direct execution: run 'pip install -r requirements.txt && playwright install chromium'")
+        print("👉 Or run via Docker: 'docker compose up'")
         sys.exit(1)
 
     scraper = GoogleMapsScraper(
@@ -185,7 +185,7 @@ async def main():
 
     total_scraped = await scraper.crawl_multiple(queries, limit_per_query=args.limit)
     print("\n" + "="*60)
-    print(f"🎉 HOÀN THÀNH TẤT CẢ! Đã thu thập và lưu {total_scraped} lượt doanh nghiệp.")
+    print(f"🎉 COMPLETED! Collected and saved {total_scraped} business records.")
     print("="*60)
     display_stats(db)
 

@@ -63,15 +63,15 @@ class Database:
             cursor.executescript(CREATE_INDEXES_SQL)
             conn.commit()
 
-        # Tự động chuẩn hoá các SĐT cũ (+84 -> 0) và loại bỏ SĐT tổng đài 1900/1800, số bàn 028 nếu có
+        # Automatically clean and normalize legacy phone numbers (+84 -> 0)
         self.clean_existing_phones()
 
     def clean_existing_phones(self) -> Dict[str, int]:
         """
-        Quét và chuẩn hoá toàn bộ số điện thoại trong DB:
-        - Chuyển đầu số +84 thành đầu số 0 (ví dụ +84901234567 -> 0901234567)
-        - Xoá các số tổng đài (1900, 1800,...)
-        - Xoá các số điện thoại bàn 028, +8428, 8428
+        Scans and normalizes all phone numbers in the database:
+        - Converts country code +84 / 84 into 0 prefix (e.g. +84901234567 -> 0901234567)
+        - Removes toll-free hotlines (1900, 1800, ...)
+        - Removes unwanted landline prefixes (028, +8428, 8428)
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -122,7 +122,7 @@ class Database:
             return "skipped"
 
         url = item.get("google_maps_url") or ""
-        # Đảm bảo số điện thoại được chuẩn hoá và loại bỏ 028 / +8428
+        # Ensure phone number is normalized and cleaned
         phone = clean_phone(item.get("phone"))
 
         with self.get_connection() as conn:
@@ -316,4 +316,3 @@ class Database:
             
             cursor.execute(query, tuple(params))
             return [dict(row) for row in cursor.fetchall()]
-
