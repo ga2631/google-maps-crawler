@@ -10,9 +10,6 @@ from src.config import (
     TIMEOUT,
     SCROLL_DELAY,
     ITEM_DELAY,
-    HCMC_LAT,
-    HCMC_LNG,
-    HCMC_ZOOM,
     MAPS_LANG,
     ONLY_ACTIVE,
 )
@@ -46,10 +43,9 @@ class GoogleMapsScraper:
         self.only_active = only_active
 
     def build_search_url(self, query: str) -> str:
-        # Ensure query targets HCMC if not already in query
         q = query.strip()
         encoded_query = urllib.parse.quote(q)
-        return f"https://www.google.com/maps/search/{encoded_query}/@{HCMC_LAT},{HCMC_LNG},{HCMC_ZOOM}z?hl={MAPS_LANG}"
+        return f"https://www.google.com/maps/search/{encoded_query}?hl={MAPS_LANG}"
 
     async def _setup_browser(self, p) -> tuple[Browser, BrowserContext, Page]:
         browser = await p.chromium.launch(
@@ -70,8 +66,6 @@ class GoogleMapsScraper:
             user_agent=USER_AGENTS[0],
             viewport={"width": 1366, "height": 768},
             locale="vi-VN",
-            geolocation={"latitude": HCMC_LAT, "longitude": HCMC_LNG},
-            permissions=["geolocation"],
         )
         # Anti-detect evasion script
         await context.add_init_script("""
@@ -154,13 +148,13 @@ class GoogleMapsScraper:
 
     async def crawl_query(self, query: str, limit: Optional[int] = None) -> int:
         """
-        Crawls businesses for a specific query keyword in Ho Chi Minh City.
+        Crawls businesses for a specific query keyword.
         Returns the number of businesses saved.
         """
         max_items = limit or self.max_results
         search_url = self.build_search_url(query)
         logger.info(f"\n========================================================")
-        logger.info(f"Bắt đầu cào từ khóa: '{query}' (Khu vực: TP. Hồ Chí Minh)")
+        logger.info(f"Bắt đầu cào từ khóa: '{query}'")
         logger.info(f"URL: {search_url}")
         logger.info(f"========================================================")
 

@@ -81,10 +81,10 @@ def display_list(db: Database, limit: int = 15):
 
 async def main():
     parser = argparse.ArgumentParser(
-        description="Google Maps Business Scraper for Ho Chi Minh City (Không dùng API - Lưu SQLite)"
+        description="Google Maps Business Scraper (Không dùng API - Lưu SQLite)"
     )
     
-    parser.add_argument("-q", "--query", type=str, help="Từ khóa cần cào (vd: 'công ty phần mềm Quận 1 Hồ Chí Minh')")
+    parser.add_argument("-q", "--query", type=str, help="Từ khóa cần cào (vd: 'công ty phần mềm Đà Nẵng', 'quán cafe Hà Nội')")
     parser.add_argument("-f", "--file", type=str, default=KEYWORDS_FILE, help=f"Đường dẫn file chứa danh sách từ khóa (mặc định: {KEYWORDS_FILE})")
     parser.add_argument("-l", "--limit", type=int, default=MAX_RESULTS, help=f"Số lượng kết quả tối đa cho mỗi từ khóa (mặc định: {MAX_RESULTS})")
     parser.add_argument("--headful", action="store_true", help="Chạy browser hiển thị giao diện (mặc định headless)")
@@ -159,7 +159,7 @@ async def main():
     only_active = not args.all_status if args.all_status else ONLY_ACTIVE
 
     print("="*60)
-    print("🚀 GOOGLE MAPS BUSINESS CRAWLER - KHU VỰC HỒ CHÍ MINH")
+    print("🚀 GOOGLE MAPS BUSINESS CRAWLER")
     print("="*60)
     print(f"📌 Số lượng từ khóa      : {len(queries)}")
     print(f"🎯 Giới hạn mỗi từ khóa   : {args.limit} kết quả")

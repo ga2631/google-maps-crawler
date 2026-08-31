@@ -23,9 +23,6 @@ ITEM_DELAY = float(os.getenv("ITEM_DELAY", "1.5"))  # seconds
 CONCURRENCY = int(os.getenv("CONCURRENCY", "1"))
 
 # Google Maps settings
-HCMC_LAT = 10.776889
-HCMC_LNG = 106.700806
-HCMC_ZOOM = 13
 MAPS_LANG = os.getenv("MAPS_LANG", "vi")
 
 # Keywords file
