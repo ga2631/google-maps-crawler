@@ -20,6 +20,8 @@ from src.config import (
     MAX_RESULTS,
     KEYWORDS_FILE,
     ONLY_ACTIVE,
+    DEFAULT_SOURCE,
+    MIN_POSITION,
 )
 from src.db import Database
 
@@ -33,17 +35,18 @@ def load_keywords(file_path: str) -> list[str]:
 
 def display_stats(db: Database):
     stats = db.get_stats()
-    print("\n" + "="*50)
+    print("\n" + "="*55)
     print(" 📊 BUSINESS DATABASE STATISTICS (SQLITE)")
-    print("="*50)
+    print("="*55)
     print(f"📁 Database Path       : {db.db_path}")
     print(f"🏢 Total Businesses    : {stats['total_businesses']}")
     print(f"🟢 Active Businesses   : {stats['active_businesses']}")
     print(f"✅ Verified / Checked  : {stats['checked_businesses']}")
     print(f"⏳ Unchecked           : {stats['unchecked_businesses']}")
     print(f"📞 With Phone Number   : {stats['with_phone']}")
+    print(f"✉️  With Email          : {stats.get('with_email', 0)}")
     print(f"🏷️  Distinct Categories : {stats['distinct_categories']}")
-    print("-" * 50)
+    print("-" * 55)
     
     if stats["top_categories"]:
         print("📌 Top 5 Categories:")
@@ -51,10 +54,10 @@ def display_stats(db: Database):
         print(tabulate(table_cats, headers=["Category", "Count"], tablefmt="grid"))
     
     if stats["top_queries"]:
-        print("\n🔍 Top 5 Search Queries:")
+        print("\n🔍 Top 5 Search Queries / Sources:")
         table_queries = [[q["search_query"], q["count"]] for q in stats["top_queries"][:5]]
         print(tabulate(table_queries, headers=["Search Query", "Count"], tablefmt="grid"))
-    print("="*50 + "\n")
+    print("="*55 + "\n")
 
 def display_list(db: Database, limit: int = 15):
     rows = db.list_businesses(limit=limit)
@@ -67,24 +70,27 @@ def display_list(db: Database, limit: int = 15):
     for r in rows:
         name = (r["name"][:25] + "..") if len(r["name"] or "") > 25 else (r["name"] or "")
         phone = r["phone"] or "-"
-        cat = (r["category"][:20] + "..") if len(r["category"] or "") > 20 else (r["category"] or "-")
+        email = (r.get("email")[:18] + "..") if len(r.get("email") or "") > 18 else (r.get("email") or "-")
+        cat = (r["category"][:18] + "..") if len(r["category"] or "") > 18 else (r["category"] or "-")
         status = r["status"] or "-"
         checked_str = "✅ Checked" if r.get("is_checked") == 1 else "⏳ Unchecked"
-        addr = (r["address"][:25] + "..") if len(r["address"] or "") > 25 else (r["address"] or "-")
-        table_data.append([r["id"], name, phone, cat, status, checked_str, addr])
+        addr = (r["address"][:22] + "..") if len(r["address"] or "") > 22 else (r["address"] or "-")
+        table_data.append([r["id"], name, phone, email, cat, status, checked_str, addr])
         
     print(tabulate(
         table_data,
-        headers=["ID", "Name", "Phone", "Category", "Status", "Checked", "Address"],
+        headers=["ID", "Name", "Phone", "Email", "Category", "Status", "Checked", "Address"],
         tablefmt="grid"
     ))
 
 async def main():
     parser = argparse.ArgumentParser(
-        description="Google Maps Business Scraper (No API Required - SQLite Storage)"
+        description="Multi-Source Business Scraper (Google Maps & Trang Vàng Việt Nam - SQLite Storage)"
     )
     
-    parser.add_argument("-q", "--query", type=str, help="Specific search keyword (e.g. 'software company Da Nang', 'cafe Hanoi')")
+    parser.add_argument("-q", "--query", type=str, help="Specific search keyword (e.g. 'may mặc', 'software company Da Nang', 'cafe Hanoi')")
+    parser.add_argument("-s", "--source", type=str, default=DEFAULT_SOURCE, choices=["trangvang", "gmaps", "all"], help=f"Data source to crawl: 'trangvang', 'gmaps', or 'all' (default: {DEFAULT_SOURCE})")
+    parser.add_argument("--min-position", type=int, default=MIN_POSITION, help=f"Minimum display position on Trang Vàng (default: {MIN_POSITION} - start from position 20 onwards)")
     parser.add_argument("-f", "--file", type=str, default=KEYWORDS_FILE, help=f"Path to file with keywords (default: {KEYWORDS_FILE})")
     parser.add_argument("-l", "--limit", type=int, default=MAX_RESULTS, help=f"Maximum results per keyword (default: {MAX_RESULTS})")
     parser.add_argument("--headful", action="store_true", help="Run browser in headful mode with visible UI (default: headless)")
@@ -159,33 +165,65 @@ async def main():
     only_active = not args.all_status if args.all_status else ONLY_ACTIVE
 
     print("="*60)
-    print("🚀 GOOGLE MAPS BUSINESS CRAWLER")
+    print("🚀 MULTI-SOURCE BUSINESS CRAWLER")
     print("="*60)
+    print(f"📌 Data Source(s)         : {args.source.upper()}")
     print(f"📌 Total Keywords         : {len(queries)}")
     print(f"🎯 Limit Per Keyword      : {args.limit} results")
+    if args.source in ("trangvang", "all"):
+        print(f"🎯 Trang Vàng Min Pos     : {args.min_position}+ (Vị trí >= {args.min_position})")
     print(f"🟢 Only Active Businesses : {only_active}")
     print(f"🖥️  Browser Mode           : {'Headless' if is_headless else 'Headful (Visible)'}")
     print(f"💾 SQLite Database        : {args.db}")
     print("="*60)
 
-    try:
-        from src.scraper import GoogleMapsScraper
-    except ImportError as e:
-        print("\n❌ Error: Missing Playwright or dependencies.")
-        print("👉 For direct execution: run 'pip install -r requirements.txt && playwright install chromium'")
-        print("👉 Or run via Docker: 'docker compose up'")
-        sys.exit(1)
+    total_scraped = 0
 
-    scraper = GoogleMapsScraper(
-        db=db,
-        max_results=args.limit,
-        headless=is_headless,
-        only_active=only_active,
-    )
+    # 1. Crawl Trang Vàng Việt Nam
+    if args.source in ("trangvang", "all"):
+        try:
+            from src.trangvang_scraper import TrangVangScraper
+            tv_scraper = TrangVangScraper(
+                db=db,
+                max_results=args.limit,
+                min_position=args.min_position,
+                headless=is_headless,
+                only_active=only_active,
+            )
+            print(f"\n⚡ [1/2] Launching Trang Vàng Việt Nam crawler (Position {args.min_position}+)...")
+            tv_count = await tv_scraper.crawl_multiple(
+                queries,
+                limit_per_query=args.limit,
+                min_position=args.min_position
+            )
+            total_scraped += tv_count
+            print(f"✅ Trang Vàng crawl finished. Saved: {tv_count} businesses.")
+        except ImportError as e:
+            print(f"\n❌ Error importing Trang Vàng scraper: {e}")
+        except Exception as e:
+            print(f"\n❌ Error during Trang Vàng crawl: {e}")
 
-    total_scraped = await scraper.crawl_multiple(queries, limit_per_query=args.limit)
+    # 2. Crawl Google Maps
+    if args.source in ("gmaps", "all"):
+        try:
+            from src.scraper import GoogleMapsScraper
+            gmaps_scraper = GoogleMapsScraper(
+                db=db,
+                max_results=args.limit,
+                headless=is_headless,
+                only_active=only_active,
+            )
+            print(f"\n⚡ [2/2] Launching Google Maps crawler...")
+            gmaps_count = await gmaps_scraper.crawl_multiple(queries, limit_per_query=args.limit)
+            total_scraped += gmaps_count
+            print(f"✅ Google Maps crawl finished. Saved: {gmaps_count} businesses.")
+        except ImportError as e:
+            print(f"\n❌ Error importing Google Maps scraper: {e}")
+        except Exception as e:
+            print(f"\n❌ Error during Google Maps crawl: {e}")
+
     print("\n" + "="*60)
-    print(f"🎉 COMPLETED! Collected and saved {total_scraped} business records.")
+    print(f"🎉 ALL TASKS COMPLETED! Total records collected & saved: {total_scraped}")
     print("="*60)
     display_stats(db)
 

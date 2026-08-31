@@ -1,35 +1,37 @@
-# 🗺️ Google Maps Business Scraper
+# 🏢 Multi-Source Business Scraper (Google Maps & Trang Vàng Việt Nam)
 
-A lightweight, robust tool to scrape business data from **Google Maps** based on custom search keywords, automatically filter for **active businesses**, securely store data in **SQLite**, and run anywhere using **Docker**.
+A lightweight, robust tool to scrape business data from **Google Maps** and **Trang Vàng Việt Nam** (`https://trangvangvietnam.com`) based on custom search keywords, automatically filter for **active businesses**, prioritize results from **position 20 onwards**, securely store data in **SQLite**, and run anywhere using **Docker**.
 
 > 💡 **Highlights**:
 >
-> - **No Google Maps API Required**: Save costs with no quota restrictions.
-> - **Playwright (Chromium) Powered**: Renders and extracts real dynamic web content.
-> - **Flexible Keyword-Based Search**: No hardcoded locations; search results adapt completely to your keywords (cities, districts, categories, etc.).
+> - **Multi-Source Support**: Crawl from **Trang Vàng Việt Nam** (`trangvangvietnam.com`), **Google Maps**, or **both sources simultaneously**.
+> - **Display Position Filtering**: Specifically supports starting from **display position 20 onwards** (`--min-position 20`) on Trang Vàng Việt Nam.
+> - **No Paid APIs Required**: Direct browser automation via Playwright without quota fees.
+> - **Anti-Detect / Stealth Mode**: Custom Playwright context with stealth headers and anti-bot evasion to handle dynamic pages and Cloudflare protection smoothly.
 > - **Phone Number Normalization**: Automatically standardizes country code `+84` to `0...` (e.g. `+84901234567` -> `0901234567`), while filtering out toll-free hotline numbers (`1900`, `1800`,...) and unwanted landline prefixes.
-> - **Business Status Filtering**: Automatically detects and retains operating businesses ("Open 24 hours", "Open", etc.), filtering out "Permanently closed" and "Temporarily closed" listings.
-> - **Smart Deduplication**: Uses intelligent UPSERT in SQLite based on Google Maps URL or (Name + Phone).
+> - **Email & Website Extraction**: Automatically extracts company emails, official websites, categories, and full addresses.
+> - **Smart Deduplication**: Intelligent UPSERT in SQLite based on unique URL or (Name + Phone).
 > - **Docker Ready**: Run out-of-the-box in any environment with persistent SQLite database volume mounting.
 
 ---
 
 ## 📋 Extracted Fields
 
-| Field | Database Column | Example |
+| Field | Database Column | Description & Example |
 | :--- | :--- | :--- |
 | **Business Name** | `name` | ABC Tech Solutions Co., Ltd |
 | **Phone Number** | `phone` | `0909123456` / `0389123456` (Normalized +84 -> 0, filtered 1900/1800) |
-| **Category / Industry** | `category` | Software company, Restaurant, Cafe,... |
-| **Operational Status** | `status` | Open, Open 24 hours, Active |
+| **Email** | `email` | `contact@company.com.vn` (Extracted from Trang Vàng / listings) |
+| **Category / Industry** | `category` | May Mặc, Logistics, Phần Mềm, Xây Dựng,... |
+| **Operational Status** | `status` | Đang hoạt động, Open 24 hours, Active |
 | **Is Active?** | `is_active` | `1` (Active) / `0` (Closed) |
 | **Is Checked?** | `is_checked` | `0` (Unchecked) / `1` (Checked) |
 | **Address** | `address` | 123 Nguyen Hue Street, District 1, Ho Chi Minh City |
 | **Website** | `website` | `https://example.com` |
 | **Rating** | `rating` | `4.8` |
 | **Reviews Count** | `reviews_count` | `150` |
-| **Google Maps URL** | `google_maps_url` | `https://www.google.com/maps/place/...` |
-| **Search Query** | `search_query` | `software company District 1` |
+| **Source URL** | `google_maps_url` | Trang Vàng listing URL or Google Maps place URL |
+| **Search Query** | `search_query` | `trangvang:may mặc` or `software company Da Nang` |
 
 ---
 
@@ -46,15 +48,18 @@ docker compose build
 ### 2. Crawl using keyword list in `config/keywords.txt`
 
 ```bash
+# Crawl all sources (Trang Vàng + Google Maps)
 docker compose up
 ```
 
-_The database file `businesses.db` will automatically be created and updated in the `./data/` folder on your host machine._
-
-### 3. Crawl a specific keyword
+### 3. Crawl specifically from Trang Vàng Việt Nam (Position 20+)
 
 ```bash
-docker compose run --rm crawler -q "logistics companies in Da Nang" -l 30
+# Crawl keyword 'may mặc' starting from position 20 onwards
+docker compose run --rm crawler -q "may mặc" -s trangvang --min-position 20 -l 30
+
+# Crawl keyword 'logistics' from Trang Vàng
+docker compose run --rm crawler -q "logistics" -s trangvang -l 50
 ```
 
 ### 4. View statistics in SQLite
@@ -83,13 +88,9 @@ docker compose run --rm crawler --export-csv /app/data/businesses.csv
 docker compose run --rm crawler --export-json /app/data/businesses.json
 ```
 
-_(The exported CSV/JSON files will appear in your `./data/` directory on the host machine)_
-
 ---
 
 ## 💻 Local Setup with Python (Without Docker)
-
-To run directly on your machine or see the browser UI in real time (headful mode):
 
 ### 1. Environment Setup
 
@@ -109,29 +110,27 @@ playwright install chromium
 ### 2. Run the Crawler
 
 ```bash
-# Crawl a specific keyword directly
-python main.py -q "software company Da Nang" -l 20
+# 1. Crawl Trang Vàng Việt Nam from position 20 onwards
+python main.py -q "may mặc" -s trangvang --min-position 20 -l 30
 
-# Run with visual browser UI (headful mode)
-python main.py -q "coffee shop Hanoi" --headful
+# 2. Crawl Google Maps directly
+python main.py -q "software company Da Nang" -s gmaps -l 20
 
-# Crawl keywords listed in config/keywords.txt
-python main.py -f config/keywords.txt -l 50
+# 3. Crawl both sources for keywords in config/keywords.txt
+python main.py -f config/keywords.txt -s all -l 50
 
-# View recently scraped businesses
+# 4. View recently scraped businesses (table display)
 python main.py --list
 
-# View database overview statistics
+# 5. View database overview statistics
 python main.py --stats
 
-# Mark a business as checked
-python main.py --mark-checked 10
-
-# Clean / normalize phone numbers in DB
+# 6. Normalize / clean existing phone numbers in DB
 python main.py --clean-phones
 
-# Export data to CSV
+# 7. Export data to CSV or JSON
 python main.py --export-csv data/businesses.csv
+python main.py --export-json data/businesses.json
 ```
 
 ---
@@ -141,6 +140,8 @@ python main.py --export-csv data/businesses.csv
 | Argument | Description | Default |
 | :--- | :--- | :--- |
 | `-q`, `--query` | Specific search keyword | `None` |
+| `-s`, `--source` | Data source (`trangvang`, `gmaps`, or `all`) | `all` |
+| `--min-position` | Minimum display position on Trang Vàng | `20` |
 | `-f`, `--file` | File containing list of keywords | `config/keywords.txt` |
 | `-l`, `--limit` | Maximum results per keyword | `50` |
 | `--headful` | Run browser in headful mode (visible UI) | `False` (Headless) |
@@ -156,24 +157,24 @@ python main.py --export-csv data/businesses.csv
 
 ---
 
-## 🗄️ SQLite Database Schema & Sample Queries
+## 🗄️ SQLite Database Sample Queries
 
 SQLite file location: `data/businesses.db`
+
+### Query businesses with phone & email from Trang Vàng:
+
+```sql
+SELECT name, phone, email, category, address
+FROM businesses
+WHERE search_query LIKE 'trangvang%' AND phone IS NOT NULL AND phone != ''
+ORDER BY id DESC;
+```
 
 ### Query all unchecked businesses with phone numbers:
 
 ```sql
-SELECT name, phone, category, status, is_checked, address
+SELECT name, phone, email, category, status, is_checked, address
 FROM businesses
 WHERE is_active = 1 AND phone IS NOT NULL AND phone != '' AND is_checked = 0
 ORDER BY id DESC;
-```
-
-### Group businesses by industry/category:
-
-```sql
-SELECT category, COUNT(*) as total
-FROM businesses
-GROUP BY category
-ORDER BY total DESC;
 ```

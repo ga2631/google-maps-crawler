@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS businesses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     phone TEXT,
+    email TEXT,
     category TEXT,
     status TEXT,
     is_active INTEGER DEFAULT 1,
@@ -53,11 +54,14 @@ class Database:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(CREATE_TABLE_SQL)
-            # Run migration for existing databases missing is_checked column
+            # Run migration for existing databases missing columns
             cursor.execute("PRAGMA table_info(businesses)")
             columns = [row["name"] for row in cursor.fetchall()]
             if "is_checked" not in columns:
                 cursor.execute("ALTER TABLE businesses ADD COLUMN is_checked INTEGER DEFAULT 0")
+                conn.commit()
+            if "email" not in columns:
+                cursor.execute("ALTER TABLE businesses ADD COLUMN email TEXT")
                 conn.commit()
             
             cursor.executescript(CREATE_INDEXES_SQL)
@@ -147,6 +151,7 @@ class Database:
                     UPDATE businesses SET
                         name = COALESCE(?, name),
                         phone = ?,
+                        email = COALESCE(?, email),
                         category = COALESCE(?, category),
                         status = COALESCE(?, status),
                         is_active = COALESCE(?, is_active),
@@ -163,6 +168,7 @@ class Database:
                 """, (
                     item.get("name"),
                     phone,
+                    item.get("email"),
                     item.get("category"),
                     item.get("status"),
                     item.get("is_active", 1),
@@ -180,13 +186,14 @@ class Database:
             else:
                 cursor.execute("""
                     INSERT INTO businesses (
-                        name, phone, category, status, is_active, is_checked,
+                        name, phone, email, category, status, is_active, is_checked,
                         address, website, rating, reviews_count,
                         google_maps_url, search_query, latitude, longitude
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     item.get("name"),
                     phone,
+                    item.get("email"),
                     item.get("category"),
                     item.get("status"),
                     item.get("is_active", 1),
@@ -221,6 +228,9 @@ class Database:
             cursor.execute("SELECT COUNT(*) as with_phone FROM businesses WHERE phone IS NOT NULL AND phone != ''")
             with_phone = cursor.fetchone()["with_phone"]
 
+            cursor.execute("SELECT COUNT(*) as with_email FROM businesses WHERE email IS NOT NULL AND email != ''")
+            with_email = cursor.fetchone()["with_email"]
+
             cursor.execute("SELECT COUNT(DISTINCT category) as categories FROM businesses WHERE category IS NOT NULL")
             categories_count = cursor.fetchone()["categories"]
 
@@ -250,6 +260,7 @@ class Database:
                 "checked_businesses": checked,
                 "unchecked_businesses": unchecked,
                 "with_phone": with_phone,
+                "with_email": with_email,
                 "distinct_categories": categories_count,
                 "top_categories": top_categories,
                 "top_queries": top_queries
@@ -304,7 +315,7 @@ class Database:
     ) -> List[Dict[str, Any]]:
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            query = "SELECT id, name, phone, category, status, is_active, is_checked, address, rating FROM businesses WHERE 1=1"
+            query = "SELECT id, name, phone, email, category, status, is_active, is_checked, address, website, rating, google_maps_url, search_query FROM businesses WHERE 1=1"
             params: List[Any] = []
             if only_active:
                 query += " AND is_active = 1"

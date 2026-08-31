@@ -32,3 +32,8 @@ KEYWORDS_FILE = os.getenv("KEYWORDS_FILE", str(CONFIG_DIR / "keywords.txt"))
 
 # Only save active businesses
 ONLY_ACTIVE = os.getenv("ONLY_ACTIVE", "true").lower() in ("true", "1", "yes")
+
+# Source and position filtering settings
+DEFAULT_SOURCE = os.getenv("CRAWL_SOURCE", "all")  # 'gmaps', 'trangvang', or 'all'
+MIN_POSITION = int(os.getenv("MIN_POSITION", "20"))  # Start from position 20 onwards for Trang Vang
+
